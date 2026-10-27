@@ -91,11 +91,6 @@ services:
   api:
     <<: *api-common
 
-  # service listening to redis for updates
-  updater:
-    <<: *api-common
-    command: ["python3", "-m", "app", "run-update-daemon"]
-
   # frontend is nginx serving static files and proxying to API
   search_frontend:
     # this is the nginx frontend serving react static version or redirecting queries
@@ -110,8 +105,8 @@ services:
     volumes:
       # Nginx, we use templates dir to be able to use environment vars
       - ./confs/nginx.conf:/etc/nginx/templates/default.conf.template
-    ports:
-      - ${SEARCH_EXPOSE:-127.0.0.1:8000}:80
+    expose:
+      - "80"
     build:
       context: frontend
       args:
