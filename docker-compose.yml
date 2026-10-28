@@ -70,6 +70,12 @@ services:
       - REDIS_PORT
       - OFF_API_URL
       - MONGO_URI=mongodb://mongo:27017
+      - OFF_MONGO_DUMP_URL=${OFF_MONGO_DUMP_URL:-https://static.openfoodfacts.org/data/openfoodfacts-mongodbdump.gz}
+      - OFF_DELTA_INDEX_URL=${OFF_DELTA_INDEX_URL:-https://static.openfoodfacts.org/data/delta/index.txt}
+      - OFF_SYNC_MIN_PRODUCTS=${OFF_SYNC_MIN_PRODUCTS:-10000000}
+      - OFF_SYNC_IMPORT_PROCESSES=${OFF_SYNC_IMPORT_PROCESSES:-4}
+      - OFF_SYNC_ES_ALIAS=${OFF_SYNC_ES_ALIAS:-openfoodfacts}
+      - OFF_SYNC_CLEANUP_INDEXES=${OFF_SYNC_CLEANUP_INDEXES:-false}
     depends_on:
       mongo:
         condition: service_healthy
@@ -82,7 +88,7 @@ services:
       - common_net
     volumes:
       - ./data:/opt/search/data
-      - ./scripts/off-sync:/opt/off-sync:ro
+
   mongo:
     image: mongo:8.0
     restart: ${RESTART_POLICY:-always}
