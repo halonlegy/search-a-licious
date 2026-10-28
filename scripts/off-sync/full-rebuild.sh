@@ -36,7 +36,7 @@ fi
 log "Downloading the full Open Food Facts MongoDB dump."
 dump_last_modified="$(
   curl --fail --location --silent --show-error --head "${DUMP_URL}" \
-    | awk 'BEGIN { IGNORECASE=1 } /^last-modified:/ { sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0 } END { print value }'
+    | awk 'tolower($0) ~ /^last-modified:/ { sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0 } END { print value }'
 )"
 if [[ -z "${dump_last_modified}" ]]; then
   log "The MongoDB dump response did not contain a Last-Modified header."
