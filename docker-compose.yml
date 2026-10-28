@@ -90,7 +90,7 @@ services:
       - ./data:/opt/search/data
 
   mongo:
-    image: mongo:8.0
+    image: public.ecr.aws/docker/library/mongo:8.0
     restart: ${RESTART_POLICY:-always}
     stop_grace_period: 1m
     volumes:
@@ -133,7 +133,7 @@ services:
     environment:
       - NGINX_BASIC_AUTH_USER_PASSWD
     ports:
-      - "${ES_VUE_EXPOSE}:8080"
+      - "${ES_VUE_EXPOSE:-127.0.0.1:18080}:8080"
     volumes:
       # we add an entrypoint to eventually add basic auth
       - ./docker/elasticvue-entrypoint.sh:/bin/elasticvue-entrypoint.sh:ro

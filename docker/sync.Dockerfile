@@ -1,6 +1,6 @@
 ARG TAG=dev
 
-FROM mongo:8.0 AS mongo-tools
+FROM public.ecr.aws/docker/library/mongo:8.0 AS mongo-tools
 
 FROM ghcr.io/openfoodfacts/search-a-licious/search_service_image:${TAG}
 
