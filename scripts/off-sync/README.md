@@ -50,9 +50,9 @@ again:
 OFF_SYNC_RESUME_FROM_EXPORT=true /opt/off-sync/full-rebuild.sh
 ```
 
-If the previous process completed the temporary JSONL export and product count,
-the resume command validates and reuses them before starting the Elasticsearch
-import. Otherwise it recreates the export from MongoDB.
+If a temporary JSONL export exists, the resume command validates it and rebuilds
+its product count in one pass. A valid export is reused before starting the
+Elasticsearch import; an incomplete export is recreated from MongoDB.
 
 Use this as a one-off command only. Leaving the variable enabled for the weekly
 task would skip the dump download, MongoDB restore, and initial delta sync.

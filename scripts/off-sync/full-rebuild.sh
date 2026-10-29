@@ -75,10 +75,18 @@ else
 fi
 
 reuse_export=false
-if [[ "${RESUME_FROM_EXPORT}" == "true" && -s "${JSONL_TMP}" && -s "${COUNT_FILE}" ]] \
-  && gzip --test < "${JSONL_TMP}" 2>/dev/null; then
-  reuse_export=true
-  log "Reusing the completed MongoDB JSONL export."
+if [[ "${RESUME_FROM_EXPORT}" == "true" && -s "${JSONL_TMP}" ]]; then
+  recovered_count_file="${COUNT_FILE}.recover"
+  log "Validating and counting the existing MongoDB JSONL export."
+  if gzip --decompress --stdout < "${JSONL_TMP}" \
+    | awk 'END { print NR }' > "${recovered_count_file}"; then
+    mv "${recovered_count_file}" "${COUNT_FILE}"
+    reuse_export=true
+    log "Reusing the completed MongoDB JSONL export."
+  else
+    rm -f "${recovered_count_file}"
+    log "The existing MongoDB JSONL export is incomplete; recreating it."
+  fi
 fi
 
 if [[ "${reuse_export}" != "true" ]]; then
