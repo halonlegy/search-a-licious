@@ -16,6 +16,7 @@ IMPORT_PROCESSES="${OFF_SYNC_IMPORT_PROCESSES:-4}"
 ES_URL="${ELASTICSEARCH_URL:-http://es01:9200}"
 ES_ALIAS="${OFF_SYNC_ES_ALIAS:-openfoodfacts}"
 CLEANUP_INDEXES="${OFF_SYNC_CLEANUP_INDEXES:-false}"
+RESUME_FROM_EXPORT="${OFF_SYNC_RESUME_FROM_EXPORT:-false}"
 
 log() {
   printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$*"
@@ -33,41 +34,45 @@ if ! flock -n 9; then
   exit 0
 fi
 
-log "Downloading the full Open Food Facts MongoDB dump."
-dump_last_modified="$(
-  curl --fail --location --silent --show-error --head "${DUMP_URL}" \
-    | awk 'tolower($0) ~ /^last-modified:/ { sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0 } END { print value }'
-)"
-if [[ -z "${dump_last_modified}" ]]; then
-  log "The MongoDB dump response did not contain a Last-Modified header."
-  exit 1
+if [[ "${RESUME_FROM_EXPORT}" == "true" ]]; then
+  log "Resuming the full rebuild from the MongoDB-to-JSONL export."
+else
+  log "Downloading the full Open Food Facts MongoDB dump."
+  dump_last_modified="$(
+    curl --fail --location --silent --show-error --head "${DUMP_URL}" \
+      | awk 'tolower($0) ~ /^last-modified:/ { sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0 } END { print value }'
+  )"
+  if [[ -z "${dump_last_modified}" ]]; then
+    log "The MongoDB dump response did not contain a Last-Modified header."
+    exit 1
+  fi
+  dump_timestamp="$(date --date="${dump_last_modified}" +%s)"
+
+  if ! gzip --test "${DUMP_TMP}" 2>/dev/null; then
+    curl --fail --location --show-error \
+      --retry 5 --retry-all-errors --continue-at - \
+      --output "${DUMP_TMP}" \
+      "${DUMP_URL}"
+  fi
+  gzip --test "${DUMP_TMP}"
+  mv "${DUMP_TMP}" "${DUMP_PATH}"
+
+  log "Replacing the local off.products collection from the full dump."
+  mongorestore \
+    --uri="${MONGO_URI}" \
+    --gzip \
+    --archive="${DUMP_PATH}" \
+    --nsInclude=off.products \
+    --drop \
+    --noIndexRestore
+
+  log "Applying every currently available delta after the full snapshot."
+  OFF_SYNC_LOCK_HELD=true \
+  OFF_SYNC_FORCE_ALL=true \
+  OFF_SYNC_SKIP_ES_IMPORT=true \
+  OFF_SYNC_MIN_DELTA_END="${dump_timestamp}" \
+    /opt/off-sync/sync-deltas.sh
 fi
-dump_timestamp="$(date --date="${dump_last_modified}" +%s)"
-
-if ! gzip --test "${DUMP_TMP}" 2>/dev/null; then
-  curl --fail --location --show-error \
-    --retry 5 --retry-all-errors --continue-at - \
-    --output "${DUMP_TMP}" \
-    "${DUMP_URL}"
-fi
-gzip --test "${DUMP_TMP}"
-mv "${DUMP_TMP}" "${DUMP_PATH}"
-
-log "Replacing the local off.products collection from the full dump."
-mongorestore \
-  --uri="${MONGO_URI}" \
-  --gzip \
-  --archive="${DUMP_PATH}" \
-  --nsInclude=off.products \
-  --drop \
-  --noIndexRestore
-
-log "Applying every currently available delta after the full snapshot."
-OFF_SYNC_LOCK_HELD=true \
-OFF_SYNC_FORCE_ALL=true \
-OFF_SYNC_SKIP_ES_IMPORT=true \
-OFF_SYNC_MIN_DELTA_END="${dump_timestamp}" \
-  /opt/off-sync/sync-deltas.sh
 
 log "Exporting MongoDB products to Search-a-licious JSONL."
 rm -f "${COUNT_FILE}" "${JSONL_TMP}"

@@ -42,6 +42,17 @@ seconds:
 The schedules use the deployment server's timezone. Run the full rebuild once
 manually before enabling the daily delta task.
 
+If a full rebuild is interrupted after MongoDB has already been restored, resume
+it from the MongoDB-to-JSONL export without downloading and restoring the dump
+again:
+
+```bash
+OFF_SYNC_RESUME_FROM_EXPORT=true /opt/off-sync/full-rebuild.sh
+```
+
+Use this as a one-off command only. Leaving the variable enabled for the weekly
+task would skip the dump download, MongoDB restore, and initial delta sync.
+
 By default inactive Elasticsearch indexes are retained for rollback. Set
 `OFF_SYNC_CLEANUP_INDEXES=true` to delete them automatically after a successful
 full rebuild.
