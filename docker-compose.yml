@@ -158,11 +158,6 @@ services:
       - ./confs/nginx.conf:/etc/nginx/templates/default.conf.template
     expose:
       - "80"
-    build:
-      context: frontend
-      args:
-        USER_UID: ${USER_UID:-1000}
-        USER_GID: ${USER_GID:-1000}
     labels:
       - 'traefik.http.middlewares.off-search-basic-auth.basicauth.users=${BASIC_AUTH_PWD}'
       - 'coolify.traefik.middlewares=off-search-basic-auth'
