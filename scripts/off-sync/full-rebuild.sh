@@ -48,13 +48,13 @@ else
   fi
   dump_timestamp="$(date --date="${dump_last_modified}" +%s)"
 
-  if ! gzip --test "${DUMP_TMP}" 2>/dev/null; then
+  if ! gzip --test < "${DUMP_TMP}" 2>/dev/null; then
     curl --fail --location --show-error \
       --retry 5 --retry-all-errors --continue-at - \
       --output "${DUMP_TMP}" \
       "${DUMP_URL}"
   fi
-  gzip --test "${DUMP_TMP}"
+  gzip --test < "${DUMP_TMP}"
   mv "${DUMP_TMP}" "${DUMP_PATH}"
 
   log "Replacing the local off.products collection from the full dump."
@@ -74,29 +74,39 @@ else
     /opt/off-sync/sync-deltas.sh
 fi
 
-log "Exporting MongoDB products to Search-a-licious JSONL."
-rm -f "${COUNT_FILE}" "${JSONL_TMP}"
-mongoexport \
-  --quiet \
-  --uri="${MONGO_URI}" \
-  --db=off \
-  --collection=products \
-  --type=json \
-  --jsonFormat=relaxed \
-  | jq --compact-output '
-      select(.code != null and .code != "")
-      | .code = (.code | tostring)
-      | .obsolete = (.obsolete // false)
-      | del(._id)
-    ' \
-  | awk -v count_file="${COUNT_FILE}" '
-      { print; count++ }
-      END { print count + 0 > count_file }
-    ' \
-  | gzip --stdout \
-  > "${JSONL_TMP}"
+reuse_export=false
+if [[ "${RESUME_FROM_EXPORT}" == "true" && -s "${JSONL_TMP}" && -s "${COUNT_FILE}" ]] \
+  && gzip --test < "${JSONL_TMP}" 2>/dev/null; then
+  reuse_export=true
+  log "Reusing the completed MongoDB JSONL export."
+fi
 
-gzip --test "${JSONL_TMP}"
+if [[ "${reuse_export}" != "true" ]]; then
+  log "Exporting MongoDB products to Search-a-licious JSONL."
+  rm -f "${COUNT_FILE}" "${JSONL_TMP}"
+  mongoexport \
+    --quiet \
+    --uri="${MONGO_URI}" \
+    --db=off \
+    --collection=products \
+    --type=json \
+    --jsonFormat=relaxed \
+    | jq --compact-output '
+        select(.code != null and .code != "")
+        | .code = (.code | tostring)
+        | .obsolete = (.obsolete // false)
+        | del(._id)
+      ' \
+    | awk -v count_file="${COUNT_FILE}" '
+        { print; count++ }
+        END { print count + 0 > count_file }
+      ' \
+    | gzip --stdout \
+    > "${JSONL_TMP}"
+
+  gzip --test < "${JSONL_TMP}"
+fi
+
 product_count="$(<"${COUNT_FILE}")"
 if (( product_count < MIN_PRODUCTS )); then
   log "Refusing import: only ${product_count} products were exported; minimum is ${MIN_PRODUCTS}."
